@@ -454,6 +454,18 @@ class ChessComAdapter:
 
             @retry_backoff(max_attempts=3, base_delay=0.5)
             def goto_url(u: str):
+                nonlocal page
+                # if the page was unexpectedly closed, recreate it
+                try:
+                    if page.is_closed():
+                        logger.warning('Page was closed; creating a new page')
+                        page = context.new_page()
+                except Exception:
+                    # best-effort: try to create new page
+                    try:
+                        page = context.new_page()
+                    except Exception:
+                        pass
                 page.goto(u)
                 page.wait_for_load_state('networkidle')
 
@@ -476,20 +488,19 @@ class ChessComAdapter:
                     page.wait_for_load_state('networkidle', timeout=10000)
                 else:
                     logger.info('Login selectors not found or credentials not provided; continuing (maybe session exists)')
-                # After attempting login (or skipping), if storage_state path provided, save current storage state
-                try:
-                    if storage_state:
-                        # attempt to persist context state so subsequent runs avoid re-login
-                        logger.info('Saving Playwright storage_state to %s', storage_state)
-                        context.storage_state(path=storage_state)
-                except Exception:
-                    logger.exception('Failed to save storage_state')
             except Exception as e:
                 logger.warning('Login attempt failed (continuing): %s', e)
 
             # Go to game URL
             try:
                 goto_url(game_url)
+                # After successfully opening the game URL, save storage_state for future runs
+                try:
+                    if storage_state:
+                        logger.info('Saving Playwright storage_state to %s', storage_state)
+                        context.storage_state(path=storage_state)
+                except Exception:
+                    logger.exception('Failed to save storage_state')
             except Exception as e:
                 logger.exception('Failed to open game URL: %s', e)
                 return
