@@ -1,0 +1,5 @@
+python-chess>=1.999
+pytest
+torch>=2.0
+numpy
+playwright
